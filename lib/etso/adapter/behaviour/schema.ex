@@ -39,7 +39,7 @@ defmodule Etso.Adapter.Behaviour.Schema do
   end
 
   @impl Ecto.Adapter.Schema
-  def delete(%{repo: repo}, %{schema: schema}, filters, _) do
+  def delete(%{repo: repo}, %{schema: schema}, filters, _, _) do
     {:ok, ets_table} = TableRegistry.get_table(repo, schema)
     [key_name] = schema.__schema__(:primary_key)
     [{^key_name, key}] = filters
