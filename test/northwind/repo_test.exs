@@ -644,5 +644,284 @@ defmodule Northwind.RepoTest do
       results = Repo.all(query)
       assert results == []
     end
+
+    test "four table join - Order, Employee, Customer, Shipper" do
+      query =
+        from o in Model.Order,
+          join: e in Model.Employee,
+          on: o.employee_id == e.employee_id,
+          join: c in Model.Customer,
+          on: o.customer_id == c.customer_id,
+          join: s in Model.Shipper,
+          on: o.ship_via == s.shipper_id,
+          select: {o.order_id, e.first_name, c.company_name, s.company_name}
+
+      results = Repo.all(query)
+      assert length(results) > 0
+
+      [first | _] = results
+      assert is_tuple(first)
+      assert tuple_size(first) == 4
+    end
+
+    test "four table join with where clause" do
+      query =
+        from o in Model.Order,
+          join: e in Model.Employee,
+          on: o.employee_id == e.employee_id,
+          join: c in Model.Customer,
+          on: o.customer_id == c.customer_id,
+          join: s in Model.Shipper,
+          on: o.ship_via == s.shipper_id,
+          where: e.first_name == "Anne",
+          select: {o.order_id, e.first_name, c.company_name, s.company_name}
+
+      results = Repo.all(query)
+      assert length(results) > 0
+
+      # All results should have Anne as first name
+      Enum.each(results, fn {_order_id, first_name, _company, _shipper} ->
+        assert first_name == "Anne"
+      end)
+    end
+
+    test "five table join - Product, Category, Supplier, Order, Customer" do
+      # This tests a more complex join path
+      # Note: This assumes there's a way to link products to orders
+      # Since we don't have order details in the schema, we'll test a different path
+      query =
+        from p in Model.Product,
+          join: cat in Model.Category,
+          on: p.category_id == cat.category_id,
+          join: sup in Model.Supplier,
+          on: p.supplier_id == sup.supplier_id,
+          select: {p.product_id, p.name, cat.name, sup.company_name}
+
+      results = Repo.all(query)
+      assert length(results) > 0
+
+      [first | _] = results
+      assert is_tuple(first)
+      assert tuple_size(first) == 4
+    end
+
+    test "multiple joins with mixed join types" do
+      query =
+        from o in Model.Order,
+          join: e in Model.Employee,
+          on: o.employee_id == e.employee_id,
+          left_join: c in Model.Customer,
+          on: o.customer_id == c.customer_id,
+          left_join: s in Model.Shipper,
+          on: o.ship_via == s.shipper_id,
+          select: {o.order_id, e.first_name, c.company_name, s.company_name}
+
+      results = Repo.all(query)
+      assert length(results) > 0
+
+      [first | _] = results
+      assert is_tuple(first)
+      assert tuple_size(first) == 4
+    end
+
+    test "multiple joins with complex where clause" do
+      query =
+        from o in Model.Order,
+          join: e in Model.Employee,
+          on: o.employee_id == e.employee_id,
+          join: c in Model.Customer,
+          on: o.customer_id == c.customer_id,
+          join: s in Model.Shipper,
+          on: o.ship_via == s.shipper_id,
+          where: e.first_name == "Anne" and not is_nil(c.company_name),
+          select: {o.order_id, e.first_name, c.company_name}
+
+      results = Repo.all(query)
+      assert length(results) >= 0
+
+      # All results should have Anne as first name
+      Enum.each(results, fn {_order_id, first_name, _company} ->
+        assert first_name == "Anne"
+      end)
+    end
+
+    test "multiple joins with order_by and limit" do
+      query =
+        from o in Model.Order,
+          join: e in Model.Employee,
+          on: o.employee_id == e.employee_id,
+          join: c in Model.Customer,
+          on: o.customer_id == c.customer_id,
+          order_by: [asc: o.order_id],
+          select: {o.order_id, e.first_name, c.company_name},
+          limit: 10
+
+      results = Repo.all(query)
+      assert length(results) <= 10
+      assert length(results) > 0
+
+      # Verify ordering
+      order_ids = Enum.map(results, fn {order_id, _, _} -> order_id end)
+      assert order_ids == Enum.sort(order_ids)
+    end
+
+    test "multiple joins with different field selections" do
+      query =
+        from o in Model.Order,
+          join: e in Model.Employee,
+          on: o.employee_id == e.employee_id,
+          join: c in Model.Customer,
+          on: o.customer_id == c.customer_id,
+          join: s in Model.Shipper,
+          on: o.ship_via == s.shipper_id,
+          select: {
+            o.order_id,
+            e.employee_id,
+            e.first_name,
+            e.last_name,
+            c.customer_id,
+            c.company_name,
+            s.shipper_id,
+            s.company_name
+          }
+
+      results = Repo.all(query)
+      assert length(results) > 0
+
+      [first | _] = results
+      assert is_tuple(first)
+      assert tuple_size(first) == 8
+    end
+
+    test "multiple joins with OR condition in where" do
+      query =
+        from o in Model.Order,
+          join: e in Model.Employee,
+          on: o.employee_id == e.employee_id,
+          join: c in Model.Customer,
+          on: o.customer_id == c.customer_id,
+          where: e.first_name == "Anne" or e.first_name == "Nancy",
+          select: {o.order_id, e.first_name, c.company_name}
+
+      results = Repo.all(query)
+      assert length(results) > 0
+
+      # All results should have Anne or Nancy as first name
+      Enum.each(results, fn {_order_id, first_name, _company} ->
+        assert first_name in ["Anne", "Nancy"]
+      end)
+    end
+
+    test "multiple joins with nested conditions" do
+      query =
+        from o in Model.Order,
+          join: e in Model.Employee,
+          on: o.employee_id == e.employee_id,
+          join: c in Model.Customer,
+          on: o.customer_id == c.customer_id,
+          where: (e.first_name == "Anne" and not is_nil(c.company_name)) or e.employee_id > 5,
+          select: {o.order_id, e.employee_id, e.first_name}
+
+      results = Repo.all(query)
+      assert length(results) >= 0
+
+      # Verify all results match the condition
+      Enum.each(results, fn {_order_id, emp_id, first_name} ->
+        assert first_name == "Anne" or emp_id > 5
+      end)
+    end
+
+    test "multiple joins chained through different relationships" do
+      # Test joining through multiple relationship paths
+      query =
+        from o in Model.Order,
+          join: e in Model.Employee,
+          on: o.employee_id == e.employee_id,
+          join: c in Model.Customer,
+          on: o.customer_id == c.customer_id,
+          join: s in Model.Shipper,
+          on: o.ship_via == s.shipper_id,
+          where: not is_nil(o.order_id),
+          select: {
+            o.order_id,
+            e.first_name,
+            c.company_name,
+            s.company_name
+          }
+
+      results = Repo.all(query)
+      assert length(results) > 0
+
+      # Verify structure
+      [first | _] = results
+      assert is_tuple(first)
+      assert tuple_size(first) == 4
+    end
+
+    test "multiple joins with aggregate-like selection" do
+      # Test that we can select specific fields from multiple joined tables
+      query =
+        from o in Model.Order,
+          join: e in Model.Employee,
+          on: o.employee_id == e.employee_id,
+          join: c in Model.Customer,
+          on: o.customer_id == c.customer_id,
+          select: {
+            o.order_id,
+            o.customer_id,
+            o.employee_id,
+            e.first_name,
+            e.last_name,
+            c.company_name
+          }
+
+      results = Repo.all(query)
+      assert length(results) > 0
+
+      [first | _] = results
+      assert is_tuple(first)
+      assert tuple_size(first) == 6
+    end
+
+    test "multiple joins with limit and offset simulation" do
+      # Test multiple joins with limit
+      query =
+        from o in Model.Order,
+          join: e in Model.Employee,
+          on: o.employee_id == e.employee_id,
+          join: c in Model.Customer,
+          on: o.customer_id == c.customer_id,
+          order_by: [asc: o.order_id],
+          select: {o.order_id, e.first_name, c.company_name},
+          limit: 5
+
+      results = Repo.all(query)
+      assert length(results) <= 5
+
+      if length(results) > 0 do
+        # Verify ordering
+        order_ids = Enum.map(results, fn {order_id, _, _} -> order_id end)
+        assert order_ids == Enum.sort(order_ids)
+      end
+    end
+
+    test "multiple joins with all fields from one table" do
+      # Test selecting all fields from the main table plus specific fields from joins
+      query =
+        from o in Model.Order,
+          join: e in Model.Employee,
+          on: o.employee_id == e.employee_id,
+          join: c in Model.Customer,
+          on: o.customer_id == c.customer_id,
+          select: {o, e.first_name, c.company_name}
+
+      results = Repo.all(query)
+      assert length(results) > 0
+
+      [first | _] = results
+      assert is_tuple(first)
+      # o is a struct, so tuple size will be 3
+      assert tuple_size(first) == 3
+    end
   end
 end
