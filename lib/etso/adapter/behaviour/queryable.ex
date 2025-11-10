@@ -101,6 +101,7 @@ defmodule Etso.Adapter.Behaviour.Queryable do
     {:ok, ets_table} = TableRegistry.get_table(repo, schema)
     ets_match = MatchSpecification.build(query, params)
     ets_objects = :ets.select(ets_table, [ets_match])
+    
     ets_count = length(ets_objects)
     {ets_count, ObjectsSorter.sort(ets_objects, query)}
   end
@@ -110,6 +111,7 @@ defmodule Etso.Adapter.Behaviour.Queryable do
     repo = get_repo(adapter_meta)
     {_, schema} = query.from.source
     {:ok, ets_table} = TableRegistry.get_table(repo, schema)
+    
     ets_match = MatchSpecification.build(query, params)
     ets_objects = query.select && ObjectsSorter.sort(:ets.select(ets_table, [ets_match]), query)
     ets_count = :ets.info(ets_table, :size)
@@ -123,7 +125,12 @@ defmodule Etso.Adapter.Behaviour.Queryable do
     {_, schema} = query.from.source
     {:ok, ets_table} = TableRegistry.get_table(repo, schema)
     ets_match = MatchSpecification.build(query, params)
-    ets_objects = query.select && ObjectsSorter.sort(:ets.select(ets_table, [ets_match]), query)
+    
+    # Get objects to delete
+    ets_objects_to_delete = :ets.select(ets_table, [ets_match])
+    ets_objects = query.select && ObjectsSorter.sort(ets_objects_to_delete, query)
+    
+    # Apply immediately
     {ets_match_head, ets_match_body, _} = ets_match
     ets_match = {ets_match_head, ets_match_body, [true]}
     ets_count = :ets.select_delete(ets_table, [ets_match])

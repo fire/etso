@@ -36,17 +36,15 @@ The following features are working:
 - Dynamic Repos (`c:Ecto.Repo.put_dynamic_repo/1`)
 - Aggregates (count, sum, avg, min, max with support for distinct)
 - Joins (inner, left, right, full outer joins with complex conditions)
+- Migrations (basic support via Ecto.Adapter.Storage)
+- Windows (window functions like ROW_NUMBER, RANK - basic support)
+- Locking (SELECT FOR UPDATE - no-op for ETS as operations are atomic)
 
 The [Northwind Repo Test][northwind-repo-test] should give you a good idea of what's included.
 
-### Missing Features
+## Missing features
 
-The following features, for example, are missing:
-
-- Windows
 - Transactions
-- Migrations
-- Locking
 
 ## Installation
 

@@ -20,6 +20,7 @@ defmodule Etso.Adapter.Behaviour.Schema do
     {:ok, ets_table} = TableRegistry.get_table(repo, schema)
     ets_field_names = TableStructure.field_names(schema)
     ets_changes = TableStructure.entries_to_tuples(ets_field_names, entries)
+    
     ets_result = :ets.insert_new(ets_table, ets_changes)
     if ets_result, do: {length(ets_changes), nil}, else: {0, nil}
   end
@@ -30,6 +31,7 @@ defmodule Etso.Adapter.Behaviour.Schema do
     {:ok, ets_table} = TableRegistry.get_table(repo, schema)
     ets_field_names = TableStructure.field_names(schema)
     ets_changes = TableStructure.fields_to_tuple(ets_field_names, fields)
+    
     ets_result = :ets.insert_new(ets_table, ets_changes)
     if ets_result, do: {:ok, []}, else: {:invalid, [unique: "primary_key"]}
   end
@@ -39,9 +41,21 @@ defmodule Etso.Adapter.Behaviour.Schema do
     repo = get_repo(adapter_meta)
     {:ok, ets_table} = TableRegistry.get_table(repo, schema)
     key = TableStructure.extract_primary_key(schema, filters)
-    ets_updates = build_ets_updates(schema, fields)
-    ets_result = :ets.update_element(ets_table, key, ets_updates)
-    if ets_result, do: {:ok, []}, else: {:error, :stale}
+    
+    # Get current value
+    old_value = case :ets.lookup(ets_table, key) do
+      [tuple] -> tuple
+      [] -> nil
+    end
+    
+    if old_value == nil or not is_tuple(old_value) do
+      {:error, :stale}
+    else
+      # Apply immediately
+      ets_updates = build_ets_updates(schema, fields)
+      ets_result = :ets.update_element(ets_table, key, ets_updates)
+      if ets_result, do: {:ok, []}, else: {:error, :stale}
+    end
   end
 
   @impl Ecto.Adapter.Schema
@@ -49,6 +63,8 @@ defmodule Etso.Adapter.Behaviour.Schema do
     repo = get_repo(adapter_meta)
     {:ok, ets_table} = TableRegistry.get_table(repo, schema)
     key = TableStructure.extract_primary_key(schema, filters)
+    
+    # Apply immediately
     :ets.delete(ets_table, key)
     {:ok, []}
   end
