@@ -76,14 +76,43 @@ defmodule Etso.ETS.MatchSpecification do
     value
   end
 
-  defp build_body(_, %Ecto.Query{select: nil}) do
-    []
+  defp build_body(field_names, %Ecto.Query{select: nil}) do
+    # When select is nil, return all fields
+    Enum.map(1..length(field_names), fn i -> :"$#{i}" end)
+  end
+
+  defp build_body(field_names, %Ecto.Query{select: %Ecto.Query.SelectExpr{fields: fields}}) do
+    # Check if this is an aggregate query
+    if is_aggregate_query?(fields) do
+      # For aggregates, return all fields so we can extract values
+      Enum.map(1..length(field_names), fn i -> :"$#{i}" end)
+    else
+      for field <- fields do
+        resolve_field_target(field_names, field)
+      end
+    end
   end
 
   defp build_body(field_names, %Ecto.Query{select: %{fields: fields}}) do
     for field <- fields do
       resolve_field_target(field_names, field)
     end
+  end
+
+  defp is_aggregate_query?([field_expr]) do
+    case field_expr do
+      {:count, _, _} -> true
+      {:sum, _, _} -> true
+      {:avg, _, _} -> true
+      {:min, _, _} -> true
+      {:max, _, _} -> true
+      {:distinct, _, [{:count, _, _}]} -> true
+      _ -> false
+    end
+  end
+
+  defp is_aggregate_query?(_) do
+    false
   end
 
   defp resolve_field_target(field_names, {:json_extract_path, [], [field, path]}) do
@@ -94,6 +123,12 @@ defmodule Etso.ETS.MatchSpecification do
   defp resolve_field_target(field_names, {{:., _, [{:&, [], [0]}, field_name]}, [], []}) do
     field_index = 1 + Enum.find_index(field_names, fn x -> x == field_name end)
     :"$#{field_index}"
+  end
+
+  defp resolve_field_target(_field_names, {{:., _, [{:&, [], [source_idx]}, _field_name]}, [], []}) when source_idx != 0 do
+    # Field from a different source (join) - this shouldn't be in match spec
+    # Return a placeholder that will cause the match to fail
+    raise "Cannot resolve field from source #{source_idx} in match specification (only source 0 is supported)"
   end
 
   defp resolve_field_target_path(field_target, path) do
@@ -116,8 +151,13 @@ defmodule Etso.ETS.MatchSpecification do
   end
 
   defp resolve_param_values(params, {:^, [], [index, count]}) do
-    for index <- index..(index + count - 1) do
-      Enum.at(params, index)
+    end_index = index + count - 1
+    if index <= end_index do
+      for i <- index..end_index do
+        Enum.at(params, i)
+      end
+    else
+      []
     end
   end
 

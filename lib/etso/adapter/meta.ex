@@ -3,13 +3,14 @@ defmodule Etso.Adapter.Meta do
 
   @type t :: %__MODULE__{
           repo: Ecto.Repo.t(),
+          dynamic_repo: Ecto.Repo.t() | nil,
           cache: :ets.tab() | nil,
           pid: pid() | nil,
           stacktrace: true | false
         }
 
   @enforce_keys ~w(repo)a
-  defstruct repo: nil, cache: nil, pid: nil, stacktrace: false
+  defstruct repo: nil, dynamic_repo: nil, cache: nil, pid: nil, stacktrace: false
 
   @behaviour Access
   defdelegate get(v, key, default), to: Map

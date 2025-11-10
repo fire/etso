@@ -5,13 +5,18 @@ defmodule Etso.Adapter.Behaviour.Schema do
   alias Etso.Adapter.TableRegistry
   alias Etso.ETS.TableStructure
 
+  defp get_repo(adapter_meta) do
+    adapter_meta.dynamic_repo || adapter_meta.repo
+  end
+
   @impl Ecto.Adapter.Schema
   def autogenerate(:id), do: :erlang.unique_integer()
   def autogenerate(:binary_id), do: Ecto.UUID.bingenerate()
   def autogenerate(:embed_id), do: Ecto.UUID.bingenerate()
 
   @impl Ecto.Adapter.Schema
-  def insert_all(%{repo: repo}, %{schema: schema}, _, entries, _, _, _, _) do
+  def insert_all(adapter_meta, %{schema: schema}, _, entries, _, _, _, _) do
+    repo = get_repo(adapter_meta)
     {:ok, ets_table} = TableRegistry.get_table(repo, schema)
     ets_field_names = TableStructure.field_names(schema)
     ets_changes = TableStructure.entries_to_tuples(ets_field_names, entries)
@@ -20,7 +25,8 @@ defmodule Etso.Adapter.Behaviour.Schema do
   end
 
   @impl Ecto.Adapter.Schema
-  def insert(%{repo: repo}, %{schema: schema}, fields, _, _, _) do
+  def insert(adapter_meta, %{schema: schema}, fields, _, _, _) do
+    repo = get_repo(adapter_meta)
     {:ok, ets_table} = TableRegistry.get_table(repo, schema)
     ets_field_names = TableStructure.field_names(schema)
     ets_changes = TableStructure.fields_to_tuple(ets_field_names, fields)
@@ -29,20 +35,20 @@ defmodule Etso.Adapter.Behaviour.Schema do
   end
 
   @impl Ecto.Adapter.Schema
-  def update(%{repo: repo}, %{schema: schema}, fields, filters, [], _) do
+  def update(adapter_meta, %{schema: schema}, fields, filters, [], _) do
+    repo = get_repo(adapter_meta)
     {:ok, ets_table} = TableRegistry.get_table(repo, schema)
-    [key_name] = schema.__schema__(:primary_key)
-    [{^key_name, key}] = filters
+    key = TableStructure.extract_primary_key(schema, filters)
     ets_updates = build_ets_updates(schema, fields)
     ets_result = :ets.update_element(ets_table, key, ets_updates)
     if ets_result, do: {:ok, []}, else: {:error, :stale}
   end
 
   @impl Ecto.Adapter.Schema
-  def delete(%{repo: repo}, %{schema: schema}, filters, _, _) do
+  def delete(adapter_meta, %{schema: schema}, filters, _, _) do
+    repo = get_repo(adapter_meta)
     {:ok, ets_table} = TableRegistry.get_table(repo, schema)
-    [key_name] = schema.__schema__(:primary_key)
-    [{^key_name, key}] = filters
+    key = TableStructure.extract_primary_key(schema, filters)
     :ets.delete(ets_table, key)
     {:ok, []}
   end

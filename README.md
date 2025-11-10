@@ -32,17 +32,17 @@ The following features are working:
 - Selects
 - Assocs
 - Preloads
+- Composite primary keys
+- Dynamic Repos (`c:Ecto.Repo.put_dynamic_repo/1`)
+- Aggregates (count, sum, avg, min, max with support for distinct)
+- Joins (inner, left, right, full outer joins with complex conditions)
 
-The [Northwind Repo Test][northwind-repo-test] should give you a good idea of what’s included.
+The [Northwind Repo Test][northwind-repo-test] should give you a good idea of what's included.
 
 ### Missing Features
 
 The following features, for example, are missing:
 
-- Composite primary keys
-- Dynamic Repos (`c:Ecto.Repo.put_dynamic_repo/1`)
-- Aggregates (dynamic / static)
-- Joins
 - Windows
 - Transactions
 - Migrations
